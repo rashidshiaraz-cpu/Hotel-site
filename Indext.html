@@ -1,0 +1,1832 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ExpertConnect Digital Board</title>
+
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js">
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js">
+    </script>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Poppins', sans-serif;
+        }
+
+        body {
+            overflow: hidden;
+            background: #1a1a2e;
+        }
+
+        /* ================= BOARD ================= */
+        .board {
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100vh;
+            overflow: hidden;
+            transition: width .45s cubic-bezier(0.4, 0, 0.2, 1);
+            cursor: default;
+            background: #1a1a2e;
+            border-radius: 90px #643000;
+            background-image: url('images/Board\ with\ showdow.png');
+            border: 7px solid #8B4513; 
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+        }
+
+        body.pdf-visible .board {
+            width: 60%;
+            
+        }
+
+        #boardCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+            background: transparent !important;
+            display: block;
+            border-radius: 90px #643000;
+        }
+
+        /* ================= CLOCK — TOP LEFT ================= */
+        #clock {
+            position: absolute;
+            top: 18px;
+            left: 18px;
+            z-index: 15;
+            font-size: 18px;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.9);
+            text-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
+            background: rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            padding: 6px 16px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            letter-spacing: 0.5px;
+            user-select: none;
+            pointer-events: none;
+            font-variant-numeric: tabular-nums;
+        }
+
+        @media (max-width: 768px) {
+            #clock {
+                font-size: 14px;
+                padding: 4px 12px;
+                top: 12px;
+                left: 12px;
+            }
+        }
+        @media (max-width: 480px) {
+            #clock {
+                font-size: 12px;
+                padding: 3px 10px;
+                top: 8px;
+                left: 8px;
+            }
+        }
+
+        /* ================= UNDO / REDO — TOP RIGHT ================= */
+        .board-actions {
+            position: absolute;
+            top: 18px;
+            right: 18px;
+            z-index: 15;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            padding: 6px 10px;
+            border-radius: 14px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all .3s ease;
+            pointer-events: auto;
+        }
+
+        .board-actions .action-btn {
+            width: 38px;
+            height: 38px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all .2s ease;
+            background: rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(4px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            position: relative;
+        }
+
+        .board-actions .action-btn:hover:not(:disabled) {
+            background: rgba(255, 255, 255, 0.25);
+            transform: scale(1.08);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .board-actions .action-btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .board-actions .action-btn .tooltip {
+            position: absolute;
+            bottom: -26px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 9px;
+            font-weight: 500;
+            background: rgba(0, 0, 0, 0.8);
+            color: #fff;
+            padding: 2px 10px;
+            border-radius: 6px;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity .2s;
+        }
+
+        .board-actions .action-btn:hover .tooltip {
+            opacity: 1;
+        }
+
+        .board-actions .divider {
+            width: 1px;
+            height: 24px;
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        @media (max-width: 768px) {
+            .board-actions {
+                top: 12px;
+                right: 12px;
+                padding: 4px 8px;
+                gap: 6px;
+                border-radius: 12px;
+            }
+            .board-actions .action-btn {
+                width: 32px;
+                height: 32px;
+                font-size: 15px;
+                border-radius: 8px;
+            }
+        }
+        @media (max-width: 480px) {
+            .board-actions {
+                top: 8px;
+                right: 8px;
+                padding: 3px 6px;
+                gap: 4px;
+                border-radius: 10px;
+            }
+            .board-actions .action-btn {
+                width: 28px;
+                height: 28px;
+                font-size: 13px;
+                border-radius: 6px;
+            }
+        }
+
+        /* ================= HORIZONTAL BOTTOM MENU ================= */
+        .bottom-menu {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: auto;
+            z-index: 9998;
+            pointer-events: none;
+            display: flex;
+            align-items: flex-end;
+            justify-content: flex-start;
+            padding: 0 16px 16px 16px;
+        }
+
+        /* Menu toggle button - bottom left corner */
+        .menu-toggle-btn {
+            pointer-events: auto;
+            width: 52px;
+            height: 52px;
+            border-radius: 50%;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            background: rgba(37, 99, 235, 0.6);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            color: #fff;
+            font-size: 26px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all .3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            box-shadow: 0 4px 24px rgba(37, 99, 235, 0.3);
+            flex-shrink: 0;
+            z-index: 2;
+            position: relative;
+        }
+
+        .menu-toggle-btn:hover {
+            transform: scale(1.08);
+            background: rgba(37, 99, 235, 0.8);
+            box-shadow: 0 6px 32px rgba(37, 99, 235, 0.4);
+        }
+
+        .menu-toggle-btn.active {
+            background: rgba(239, 68, 68, 0.5);
+            border-color: rgba(239, 68, 68, 0.2);
+            box-shadow: 0 4px 24px rgba(239, 68, 68, 0.2);
+        }
+
+        .menu-toggle-btn .badge {
+            position: absolute;
+            top: -4px;
+            right: -4px;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #22c55e;
+            color: #fff;
+            font-size: 9px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid #1a1a2e;
+        }
+
+        /* Menu panel - horizontal bar */
+        .menu-panel {
+            pointer-events: auto;
+            position: relative;
+            margin-left: 12px;
+            background: rgba(0, 0, 0, 0.35);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border-radius: 18px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 8px 48px rgba(0, 0, 0, 0.4);
+            padding: 10px 14px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            max-width: calc(100% - 80px);
+            overflow-x: auto;
+            overflow-y: hidden;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+            transform-origin: left center;
+            transform: scaleX(0);
+            opacity: 0;
+            transition: transform .4s cubic-bezier(0.34, 1.56, 0.64, 1), opacity .35s ease;
+            white-space: nowrap;
+        }
+
+        .menu-panel::-webkit-scrollbar {
+            display: none;
+        }
+
+        .menu-panel.open {
+            transform: scaleX(1);
+            opacity: 1;
+        }
+
+        .menu-panel .menu-divider {
+            width: 1px;
+            height: 32px;
+            background: rgba(255, 255, 255, 0.06);
+            flex-shrink: 0;
+        }
+
+        /* Tools in horizontal layout */
+        .menu-tools {
+            display: flex;
+            gap: 4px;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        .menu-tool {
+            width: 38px;
+            height: 38px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.04);
+            background: rgba(255, 255, 255, 0.04);
+            color: rgba(255, 255, 255, 0.6);
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: all .2s ease;
+            font-size: 16px;
+            gap: 0;
+            flex-shrink: 0;
+            position: relative;
+        }
+
+        .menu-tool .tool-label {
+            font-size: 7px;
+            font-weight: 500;
+            opacity: 0.5;
+            line-height: 1;
+            margin-top: 1px;
+        }
+
+        .menu-tool:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.9);
+            transform: translateY(-2px);
+        }
+
+        .menu-tool.active {
+            background: rgba(37, 99, 235, 0.4);
+            color: #fff;
+            border-color: rgba(37, 99, 235, 0.2);
+            box-shadow: 0 2px 16px rgba(37, 99, 235, 0.2);
+        }
+
+        .menu-tool .tool-icon {
+            font-size: 17px;
+            line-height: 1;
+        }
+
+        /* Color & size controls */
+        .menu-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        .menu-controls label {
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.5);
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .menu-controls input[type="color"] {
+            width: 28px;
+            height: 28px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            background: none;
+            padding: 0;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            flex-shrink: 0;
+        }
+
+        .menu-controls input[type="range"] {
+            width: 60px;
+            height: 4px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 4px;
+            outline: none;
+            flex-shrink: 0;
+            accent-color: #2563EB;
+        }
+
+        .menu-controls input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #2563EB;
+            cursor: pointer;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .menu-controls .size-value {
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.5);
+            min-width: 18px;
+            text-align: center;
+            font-weight: 500;
+        }
+
+        .menu-controls .eraser-size-label {
+            font-size: 10px;
+            color: rgba(255, 255, 255, 0.35);
+            font-weight: 400;
+        }
+
+        /* Eraser size slider (shown only when eraser is active) */
+        .eraser-size-control {
+            display: none;
+            align-items: center;
+            gap: 6px;
+            flex-shrink: 0;
+        }
+
+        .eraser-size-control.visible {
+            display: flex;
+        }
+
+        .eraser-size-control label {
+            font-size: 10px;
+            color: rgba(255, 255, 255, 0.4);
+            font-weight: 400;
+        }
+
+        .eraser-size-control input[type="range"] {
+            width: 50px;
+            height: 3px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: rgba(255, 255, 255, 0.12);
+            border-radius: 4px;
+            outline: none;
+            flex-shrink: 0;
+            accent-color: #ef4444;
+        }
+
+        .eraser-size-control input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #ef4444;
+            cursor: pointer;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .eraser-size-control .eraser-size-value {
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.5);
+            min-width: 18px;
+            text-align: center;
+            font-weight: 500;
+        }
+
+        /* Book tab content inside menu */
+        .menu-book {
+            display: none;
+            align-items: center;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        .menu-book.visible {
+            display: flex;
+        }
+
+        .menu-book .pdf-item-mini {
+            padding: 4px 12px;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.04);
+            color: rgba(255, 255, 255, 0.6);
+            cursor: pointer;
+            font-size: 11px;
+            transition: .2s;
+            white-space: nowrap;
+        }
+
+        .menu-book .pdf-item-mini:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+        }
+
+        .menu-book .pdf-input-mini {
+            padding: 4px 10px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            background: rgba(255, 255, 255, 0.04);
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 11px;
+            outline: none;
+            width: 120px;
+        }
+
+        .menu-book .pdf-input-mini::placeholder {
+            color: rgba(255, 255, 255, 0.2);
+        }
+
+        .menu-book .pdf-input-mini:focus {
+            border-color: rgba(37, 99, 235, 0.3);
+        }
+
+        .menu-book .pdf-load-btn {
+            padding: 4px 14px;
+            border-radius: 8px;
+            border: none;
+            background: rgba(37, 99, 235, 0.4);
+            color: #fff;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 500;
+            transition: .2s;
+        }
+
+        .menu-book .pdf-load-btn:hover {
+            background: rgba(37, 99, 235, 0.6);
+        }
+
+        /* Tab toggle within menu */
+        .menu-tab-btn {
+            padding: 4px 12px;
+            border-radius: 8px;
+            border: none;
+            background: rgba(255, 255, 255, 0.04);
+            color: rgba(255, 255, 255, 0.4);
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 500;
+            transition: .2s;
+            flex-shrink: 0;
+        }
+
+        .menu-tab-btn:hover {
+            color: rgba(255, 255, 255, 0.7);
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .menu-tab-btn.active {
+            color: #fff;
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        /* Responsive horizontal menu */
+        @media (max-width: 768px) {
+            .bottom-menu {
+                padding: 0 10px 10px 10px;
+            }
+            .menu-toggle-btn {
+                width: 44px;
+                height: 44px;
+                font-size: 22px;
+            }
+            .menu-panel {
+                padding: 8px 10px;
+                gap: 8px;
+                margin-left: 8px;
+                border-radius: 14px;
+            }
+            .menu-tool {
+                width: 32px;
+                height: 32px;
+                font-size: 14px;
+            }
+            .menu-tool .tool-icon {
+                font-size: 14px;
+            }
+            .menu-tool .tool-label {
+                font-size: 6px;
+            }
+            .menu-controls input[type="range"] {
+                width: 40px;
+            }
+            .menu-controls label {
+                font-size: 9px;
+            }
+            .menu-controls input[type="color"] {
+                width: 24px;
+                height: 24px;
+            }
+            .menu-book .pdf-input-mini {
+                width: 80px;
+                font-size: 10px;
+            }
+            .menu-book .pdf-item-mini {
+                font-size: 10px;
+                padding: 3px 10px;
+            }
+            .menu-tab-btn {
+                font-size: 10px;
+                padding: 3px 10px;
+            }
+            .eraser-size-control input[type="range"] {
+                width: 35px;
+            }
+            .eraser-size-control label {
+                font-size: 9px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .bottom-menu {
+                padding: 0 6px 6px 6px;
+            }
+            .menu-toggle-btn {
+                width: 38px;
+                height: 38px;
+                font-size: 18px;
+            }
+            .menu-panel {
+                padding: 6px 8px;
+                gap: 6px;
+                margin-left: 6px;
+                border-radius: 12px;
+            }
+            .menu-tool {
+                width: 28px;
+                height: 28px;
+                font-size: 12px;
+                border-radius: 8px;
+            }
+            .menu-tool .tool-icon {
+                font-size: 12px;
+            }
+            .menu-tool .tool-label {
+                display: none;
+            }
+            .menu-controls input[type="range"] {
+                width: 30px;
+            }
+            .menu-controls label {
+                font-size: 8px;
+            }
+            .menu-controls input[type="color"] {
+                width: 20px;
+                height: 20px;
+            }
+            .menu-controls .size-value {
+                font-size: 9px;
+                min-width: 14px;
+            }
+            .menu-book .pdf-input-mini {
+                width: 60px;
+                font-size: 9px;
+                padding: 3px 8px;
+            }
+            .menu-book .pdf-item-mini {
+                font-size: 9px;
+                padding: 2px 8px;
+            }
+            .menu-tab-btn {
+                font-size: 9px;
+                padding: 2px 8px;
+            }
+            .menu-panel .menu-divider {
+                height: 24px;
+            }
+            .eraser-size-control input[type="range"] {
+                width: 28px;
+            }
+            .eraser-size-control label {
+                font-size: 8px;
+            }
+            .eraser-size-control .eraser-size-value {
+                font-size: 9px;
+                min-width: 14px;
+            }
+        }
+
+        /* ================= PDF VIEWER (RIGHT) ================= */
+        .pdf-container {
+            position: fixed;
+            right: 0;
+            top: 0;
+            width: 40%;
+            height: 100vh;
+            display: none;
+            flex-direction: column;
+            background: rgba(30, 30, 60, 0.95);
+            backdrop-filter: blur(16px);
+            border-left: 1px solid rgba(255, 255, 255, 0.06);
+            opacity: 0;
+            transform: translateX(30px);
+            transition: opacity .4s ease, transform .4s ease;
+            z-index: 100;
+        }
+
+        .pdf-container.active {
+            display: flex;
+            opacity: 1;
+            transform: translateX(0);
+        }
+
+        .pdf-toolbar {
+            height: 56px;
+            background: rgba(255, 255, 255, 0.04);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 0 14px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+            flex-shrink: 0;
+            flex-wrap: nowrap;
+        }
+
+        .pdf-toolbar button {
+            padding: 6px 12px;
+            border: none;
+            background: rgba(37, 99, 235, 0.4);
+            color: #fff;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            transition: .2s;
+            white-space: nowrap;
+            border: 1px solid rgba(37, 99, 235, 0.1);
+        }
+
+        .pdf-toolbar button:hover {
+            background: rgba(37, 99, 235, 0.6);
+        }
+
+        .pdf-toolbar button:disabled {
+            opacity: .3;
+            cursor: not-allowed;
+        }
+
+        .pdf-toolbar .close-viewer {
+            background: rgba(239, 68, 68, 0.3);
+            border-color: rgba(239, 68, 68, 0.1);
+        }
+        .pdf-toolbar .close-viewer:hover {
+            background: rgba(239, 68, 68, 0.5);
+        }
+
+        .pdf-toolbar #page-info {
+            font-size: 13px;
+            font-weight: 500;
+            color: rgba(255, 255, 255, 0.7);
+            min-width: 70px;
+            text-align: center;
+        }
+
+        .pdf-toolbar .spacer {
+            flex: 1;
+        }
+
+        .pdf-toolbar .file-name-badge {
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.4);
+            background: rgba(255, 255, 255, 0.04);
+            padding: 4px 12px;
+            border-radius: 20px;
+            max-width: 140px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .pdf-view {
+            flex: 1;
+            overflow: auto;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.2);
+        }
+
+        #pdfCanvas {
+            max-width: 100%;
+            height: auto;
+            background: #fff;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            border-radius: 4px;
+            transition: .2s;
+        }
+
+        /* ================= CURSOR STYLES ================= */
+        .cursor-pen {
+            cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='30' viewBox='0 0 24 30'%3E%3Cpolygon points='2,2 20,12 14,14 10,20 2,2' fill='%23ffffff' opacity='0.8'/%3E%3Cpolygon points='2,2 20,12 14,14 10,20 2,2' fill='none' stroke='%23000000' stroke-width='1.5'/%3E%3C/svg%3E") 2 2, crosshair !important;
+        }
+
+        .cursor-highlighter {
+            cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='30' viewBox='0 0 24 30'%3E%3Crect x='2' y='2' width='20' height='26' rx='2' fill='%23ffdd00' opacity='0.5'/%3E%3Crect x='2' y='2' width='20' height='26' rx='2' fill='none' stroke='%23ffffff' stroke-width='1.5'/%3E%3C/svg%3E") 2 2, crosshair !important;
+        }
+
+        .cursor-eraser {
+            cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='30' height='30' viewBox='0 0 30 30'%3E%3Ccircle cx='15' cy='15' r='12' fill='rgba(255,255,255,0.3)' stroke='%23ffffff' stroke-width='2'/%3E%3Ccircle cx='15' cy='15' r='6' fill='rgba(255,100,100,0.4)'/%3E%3C/svg%3E") 15 15, crosshair !important;
+        }
+
+        .cursor-text {
+            cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='30' viewBox='0 0 24 30'%3E%3Ctext x='2' y='22' font-family='Arial' font-size='18' fill='%23ffffff' opacity='0.8'%3ET%3C/text%3E%3C/svg%3E") 2 22, text !important;
+        }
+
+        .cursor-shape {
+            cursor: crosshair !important;
+        }
+
+        .cursor-default {
+            cursor: default !important;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ===== CLOCK — TOP LEFT ===== -->
+    <div id="clock"></div>
+
+    <!-- ===== UNDO / REDO — TOP RIGHT ===== -->
+    <div class="board-actions" id="boardActions">
+        <button class="action-btn" id="undoBtnBoard" disabled title="Undo (Ctrl+Z)">
+            ↩️
+            <span class="tooltip">Undo</span>
+        </button>
+        <div class="divider"></div>
+        <button class="action-btn" id="redoBtnBoard" disabled title="Redo (Ctrl+Y)">
+            ↪️
+            <span class="tooltip">Redo</span>
+        </button>
+    </div>
+
+    <!-- ===== BOARD ===== -->
+    <div class="board" id="boardContainer">
+        <canvas id="boardCanvas"></canvas>
+    </div>
+    <style>
+        #boardContainer{
+            border-radius: 5px red ;
+        }
+    </style>
+    <!-- ===== PDF VIEWER (RIGHT) ===== -->
+    <div class="pdf-container" id="pdfContainer">
+        <div class="pdf-toolbar">
+            <button id="prevBtn" disabled>◀</button>
+            <span id="pageInfo">Page 1 / 1</span>
+            <button id="nextBtn" disabled>▶</button>
+            <button id="zoomOutBtn">−</button>
+            <button id="zoomInBtn">+</button>
+            <button id="fitBtn">Fit</button>
+            <button id="downloadBtn">⬇ Save</button>
+            <span class="spacer"></span>
+            <span class="file-name-badge" id="currentPdfName">No PDF</span>
+            <button class="close-viewer" id="closeViewerBtn">✕</button>
+        </div>
+        <div class="pdf-view">
+            <canvas id="pdfCanvas"></canvas>
+        </div>
+    </div>
+
+    <!-- ===== BOTTOM MENU ===== -->
+    <div class="bottom-menu">
+        <!-- Menu Toggle Button - Bottom Left Corner -->
+        <button class="menu-toggle-btn" id="menuToggle" aria-label="Toggle menu">
+            ☰
+            <span class="badge" id="toolBadge">✏️</span>
+        </button>
+
+        <!-- Menu Panel - Horizontal Bar -->
+        <div class="menu-panel" id="menuPanel">
+            <!-- Tools -->
+            <div class="menu-tools" id="menuTools">
+                <button class="menu-tool active" data-tool="pen" title="Pen">
+                    <span class="tool-icon">✏️</span>
+                    <span class="tool-label">Pen</span>
+                </button>
+                <button class="menu-tool" data-tool="highlighter" title="Highlighter">
+                    <span class="tool-icon">🖍️</span>
+                    <span class="tool-label">Highlight</span>
+                </button>
+                <button class="menu-tool" data-tool="eraser" title="Eraser">
+                    <span class="tool-icon">🧽</span>
+                    <span class="tool-label">Eraser</span>
+                </button>
+                <button class="menu-tool" data-tool="text" title="Text">
+                    <span class="tool-icon">🔤</span>
+                    <span class="tool-label">Text</span>
+                </button>
+                <button class="menu-tool" data-tool="circle" title="Circle">
+                    <span class="tool-icon">⭕</span>
+                    <span class="tool-label">Circle</span>
+                </button>
+                <button class="menu-tool" data-tool="rectangle" title="Rectangle">
+                    <span class="tool-icon">⬜</span>
+                    <span class="tool-label">Rect</span>
+                </button>
+                <button class="menu-tool" data-tool="line" title="Line">
+                    <span class="tool-icon">📏</span>
+                    <span class="tool-label">Line</span>
+                </button>
+                <button class="menu-tool" data-tool="arrow" title="Arrow">
+                    <span class="tool-icon">➡️</span>
+                    <span class="tool-label">Arrow</span>
+                </button>
+                <button class="menu-tool" data-tool="save" title="Save PDF">
+                    <span class="tool-icon">💾</span>
+                    <span class="tool-label">Save</span>
+                </button>
+                <button class="menu-tool" data-tool="clear" title="Clear Board">
+                    <span class="tool-icon">🗑️</span>
+                    <span class="tool-label">Clear</span>
+                </button>
+            </div>
+
+            <div class="menu-divider"></div>
+
+            <!-- Color & Size Controls -->
+            <div class="menu-controls">
+                <label>🎨
+                    <input type="color" id="drawColor" value="#ffffff" />
+                </label>
+                <label>📏
+                    <input type="range" id="drawSize" min="1" max="30" value="3" />
+                    <span class="size-value" id="sizeLabel">3</span>
+                </label>
+
+                <!-- Eraser size control (shown only when eraser is active) -->
+                <div class="eraser-size-control" id="eraserSizeControl">
+                    <label>🧽
+                        <input type="range" id="eraserSize" min="2" max="50" value="10" />
+                        <span class="eraser-size-value" id="eraserSizeLabel">10</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="menu-divider"></div>
+
+            <!-- Tab Switcher -->
+            <button class="menu-tab-btn active" data-tab="tools" id="tabToolsBtn">🛠 Tools</button>
+            <button class="menu-tab-btn" data-tab="book" id="tabBookBtn">📖 Book</button>
+
+            <!-- Book content (hidden by default, shown when Book tab is active) -->
+            <div class="menu-book" id="menuBook">
+                <div id="pdfListMini"></div>
+                <input class="pdf-input-mini" id="customPdfUrlMini" placeholder="PDF URL..." />
+                <button class="pdf-load-btn" id="loadPdfMiniBtn">Load</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <script>
+        // =============================================================
+        // 1. PDF LIST
+        // =============================================================
+        const PDF_FILES = [{
+            name: 'Sample',
+            url: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf'
+        }, {
+            name: 'PDF.js Ref',
+            url: 'https://cdn.mozilla.net/pdfjs/pdf.pdf'
+        }, {
+            name: 'Tracemonkey',
+            url: 'https://cdn.mozilla.net/pdfjs/tracemonkey.pdf'
+        }, {
+            name: 'Report',
+            url: 'https://www.africau.edu/images/default/sample.pdf'
+        }];
+
+        pdfjsLib.GlobalWorkerOptions.workerSrc =
+            'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+
+        // =============================================================
+        // 2. CLOCK
+        // =============================================================
+        function updateClock() {
+            const now = new Date();
+            const time = now.toLocaleTimeString('en-US', {
+                hour12: true,
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+            document.getElementById('clock').textContent = '🕐 ' + time;
+        }
+        updateClock();
+        setInterval(updateClock, 1000);
+
+        // =============================================================
+        // 3. BOARD DRAWING ENGINE
+        // =============================================================
+        const canvas = document.getElementById('boardCanvas');
+        const ctx = canvas.getContext('2d');
+        const boardContainer = document.getElementById('boardContainer');
+
+        let W, H;
+
+        function resizeCanvas() {
+            const rect = boardContainer.getBoundingClientRect();
+            W = rect.width;
+            H = rect.height;
+            canvas.width = W;
+            canvas.height = H;
+            renderAll();
+        }
+
+        let drawings = [];
+        let currentPath = null;
+        let currentShape = null;
+        let isDrawing = false;
+        let activeTool = 'pen';
+        let drawColor = '#ffffff';
+        let drawSize = 3;
+        let eraserSize = 10;
+        let startX = 0,
+            startY = 0;
+
+        // =============================================================
+        // 4. UNDO / REDO
+        // =============================================================
+        let history = [];
+        let historyIndex = -1;
+        const MAX_HISTORY = 50;
+
+        function saveHistory() {
+            if (historyIndex < history.length - 1) {
+                history = history.slice(0, historyIndex + 1);
+            }
+            history.push(JSON.stringify(drawings));
+            if (history.length > MAX_HISTORY) {
+                history.shift();
+            }
+            historyIndex = history.length - 1;
+            updateUndoRedoButtons();
+        }
+
+        function undo() {
+            if (historyIndex > 0) {
+                historyIndex--;
+                drawings = JSON.parse(history[historyIndex]);
+                currentPath = null;
+                currentShape = null;
+                isDrawing = false;
+                renderAll();
+                updateUndoRedoButtons();
+            }
+        }
+
+        function redo() {
+            if (historyIndex < history.length - 1) {
+                historyIndex++;
+                drawings = JSON.parse(history[historyIndex]);
+                currentPath = null;
+                currentShape = null;
+                isDrawing = false;
+                renderAll();
+                updateUndoRedoButtons();
+            }
+        }
+
+        function updateUndoRedoButtons() {
+            const undoBtn = document.getElementById('undoBtnBoard');
+            const redoBtn = document.getElementById('redoBtnBoard');
+            if (undoBtn) {
+                undoBtn.disabled = historyIndex <= 0;
+            }
+            if (redoBtn) {
+                redoBtn.disabled = historyIndex >= history.length - 1;
+            }
+        }
+
+        // ---- Drawing functions ----
+        function renderAll() {
+            ctx.clearRect(0, 0, W, H);
+
+            // First pass: draw all non-eraser items
+            drawings.forEach(d => {
+                if (!d.isEraser) {
+                    drawItem(ctx, d, false);
+                }
+            });
+
+            // Second pass: draw eraser items with destination-out
+            drawings.forEach(d => {
+                if (d.isEraser) {
+                    drawItem(ctx, d, true);
+                }
+            });
+
+            // Draw current live drawing
+            if (currentPath && isDrawing) {
+                drawItem(ctx, currentPath, currentPath.isEraser || false);
+            }
+            if (currentShape && isDrawing) {
+                drawItem(ctx, currentShape, false);
+            }
+        }
+
+        function drawItem(context, item, isEraserMode) {
+            const isEraser = isEraserMode || item.isEraser;
+
+            if (isEraser) {
+                context.save();
+                context.globalCompositeOperation = 'destination-out';
+                context.strokeStyle = '#ffffff';
+                context.lineWidth = item.size || 10;
+                context.lineCap = 'round';
+                context.lineJoin = 'round';
+                context.globalAlpha = 1;
+            } else {
+                context.globalCompositeOperation = 'source-over';
+                context.strokeStyle = item.color || '#ffffff';
+                context.lineWidth = item.size || 3;
+                context.lineCap = 'round';
+                context.lineJoin = 'round';
+                context.globalAlpha = item.highlighter ? 0.4 : 1;
+            }
+
+            if (item.type === 'path') {
+                if (item.points.length < 2) return;
+                context.beginPath();
+                context.moveTo(item.points[0].x, item.points[0].y);
+                for (let i = 1; i < item.points.length; i++) {
+                    context.lineTo(item.points[i].x, item.points[i].y);
+                }
+                context.stroke();
+            } else if (item.type === 'circle') {
+                context.beginPath();
+                context.ellipse(item.x, item.y, item.rx, item.ry, 0, 0, Math.PI * 2);
+                context.stroke();
+            } else if (item.type === 'rectangle') {
+                context.strokeRect(item.x, item.y, item.w, item.h);
+            } else if (item.type === 'line') {
+                context.beginPath();
+                context.moveTo(item.x1, item.y1);
+                context.lineTo(item.x2, item.y2);
+                context.stroke();
+            } else if (item.type === 'arrow') {
+                drawArrow(context, item.x1, item.y1, item.x2, item.y2, isEraser);
+            } else if (item.type === 'text' && !isEraser) {
+                context.globalCompositeOperation = 'source-over';
+                context.font = `${item.size || 24}px Poppins, sans-serif`;
+                context.fillStyle = item.color || '#ffffff';
+                context.globalAlpha = 1;
+                context.textBaseline = 'top';
+                context.fillText(item.text, item.x, item.y);
+            }
+
+            if (isEraser) {
+                context.restore();
+            } else {
+                context.globalAlpha = 1;
+            }
+        }
+
+        function drawArrow(context, x1, y1, x2, y2, isEraser) {
+            const angle = Math.atan2(y2 - y1, x2 - x1);
+            const headLen = Math.min(20, (isEraser ? 10 : 3) * 6 + 8);
+
+            context.beginPath();
+            context.moveTo(x1, y1);
+            context.lineTo(x2, y2);
+            context.stroke();
+
+            context.beginPath();
+            context.moveTo(x2, y2);
+            context.lineTo(x2 - headLen * Math.cos(angle - 0.4), y2 - headLen * Math.sin(angle - 0.4));
+            context.lineTo(x2 - headLen * Math.cos(angle + 0.4), y2 - headLen * Math.sin(angle + 0.4));
+            context.closePath();
+            if (isEraser) {
+                context.fillStyle = '#ffffff';
+                context.fill();
+            } else {
+                context.fillStyle = context.strokeStyle;
+                context.fill();
+            }
+        }
+
+        // ---- Event handlers ----
+        function getPos(e) {
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            return {
+                x: (clientX - rect.left) * (canvas.width / rect.width),
+                y: (clientY - rect.top) * (canvas.height / rect.height)
+            };
+        }
+
+        function startDraw(e) {
+            e.preventDefault();
+            const pos = getPos(e);
+            isDrawing = true;
+            startX = pos.x;
+            startY = pos.y;
+
+            if (activeTool === 'pen' || activeTool === 'highlighter') {
+                currentPath = {
+                    type: 'path',
+                    points: [{ x: pos.x, y: pos.y }],
+                    color: drawColor,
+                    size: drawSize,
+                    highlighter: activeTool === 'highlighter',
+                    isEraser: false
+                };
+            } else if (activeTool === 'eraser') {
+                currentPath = {
+                    type: 'path',
+                    points: [{ x: pos.x, y: pos.y }],
+                    color: '#ffffff',
+                    size: eraserSize,
+                    highlighter: false,
+                    isEraser: true
+                };
+            } else if (activeTool === 'circle' || activeTool === 'rectangle' || activeTool === 'line' || activeTool ===
+                'arrow') {
+                currentShape = {
+                    type: activeTool,
+                    x: pos.x,
+                    y: pos.y,
+                    x1: pos.x,
+                    y1: pos.y,
+                    x2: pos.x,
+                    y2: pos.y,
+                    w: 0,
+                    h: 0,
+                    rx: 0,
+                    ry: 0,
+                    color: drawColor,
+                    size: drawSize,
+                    highlighter: false,
+                    isEraser: false
+                };
+                if (activeTool === 'circle') {
+                    currentShape.x = pos.x;
+                    currentShape.y = pos.y;
+                    currentShape.rx = 0;
+                    currentShape.ry = 0;
+                } else if (activeTool === 'rectangle') {
+                    currentShape.x = pos.x;
+                    currentShape.y = pos.y;
+                    currentShape.w = 0;
+                    currentShape.h = 0;
+                } else if (activeTool === 'line' || activeTool === 'arrow') {
+                    currentShape.x1 = pos.x;
+                    currentShape.y1 = pos.y;
+                    currentShape.x2 = pos.x;
+                    currentShape.y2 = pos.y;
+                }
+            } else if (activeTool === 'text') {
+                const text = prompt('Enter text:', 'Hello');
+                if (text && text.trim()) {
+                    drawings.push({
+                        type: 'text',
+                        x: pos.x,
+                        y: pos.y,
+                        text: text.trim(),
+                        color: drawColor,
+                        size: Math.max(14, drawSize * 6),
+                        isEraser: false
+                    });
+                    saveHistory();
+                    renderAll();
+                }
+                isDrawing = false;
+                return;
+            }
+
+            renderAll();
+        }
+
+        function moveDraw(e) {
+            e.preventDefault();
+            if (!isDrawing) return;
+            const pos = getPos(e);
+
+            if (activeTool === 'pen' || activeTool === 'highlighter' || activeTool === 'eraser') {
+                if (currentPath) {
+                    currentPath.points.push({ x: pos.x, y: pos.y });
+                    renderAll();
+                }
+            } else if (activeTool === 'circle') {
+                if (currentShape) {
+                    currentShape.rx = Math.abs(pos.x - startX) / 2;
+                    currentShape.ry = Math.abs(pos.y - startY) / 2;
+                    currentShape.x = (startX + pos.x) / 2;
+                    currentShape.y = (startY + pos.y) / 2;
+                    renderAll();
+                }
+            } else if (activeTool === 'rectangle') {
+                if (currentShape) {
+                    currentShape.x = Math.min(startX, pos.x);
+                    currentShape.y = Math.min(startY, pos.y);
+                    currentShape.w = Math.abs(pos.x - startX);
+                    currentShape.h = Math.abs(pos.y - startY);
+                    renderAll();
+                }
+            } else if (activeTool === 'line' || activeTool === 'arrow') {
+                if (currentShape) {
+                    currentShape.x2 = pos.x;
+                    currentShape.y2 = pos.y;
+                    renderAll();
+                }
+            }
+        }
+
+        function endDraw(e) {
+            e.preventDefault();
+            if (!isDrawing) return;
+            isDrawing = false;
+
+            if (activeTool === 'pen' || activeTool === 'highlighter' || activeTool === 'eraser') {
+                if (currentPath && currentPath.points.length > 1) {
+                    drawings.push({ ...currentPath });
+                    saveHistory();
+                }
+                currentPath = null;
+                renderAll();
+            } else if (activeTool === 'circle') {
+                if (currentShape && currentShape.rx > 3 && currentShape.ry > 3) {
+                    drawings.push({ ...currentShape });
+                    saveHistory();
+                }
+                currentShape = null;
+                renderAll();
+            } else if (activeTool === 'rectangle') {
+                if (currentShape && currentShape.w > 3 && currentShape.h > 3) {
+                    drawings.push({ ...currentShape });
+                    saveHistory();
+                }
+                currentShape = null;
+                renderAll();
+            } else if (activeTool === 'line' || activeTool === 'arrow') {
+                if (currentShape) {
+                    const dx = currentShape.x2 - currentShape.x1;
+                    const dy = currentShape.y2 - currentShape.y1;
+                    if (Math.sqrt(dx * dx + dy * dy) > 5) {
+                        drawings.push({ ...currentShape });
+                        saveHistory();
+                    }
+                }
+                currentShape = null;
+                renderAll();
+            }
+
+            updateUndoRedoButtons();
+        }
+
+        canvas.addEventListener('mousedown', startDraw);
+        canvas.addEventListener('mousemove', moveDraw);
+        canvas.addEventListener('mouseup', endDraw);
+        canvas.addEventListener('mouseleave', endDraw);
+
+        canvas.addEventListener('touchstart', startDraw, { passive: false });
+        canvas.addEventListener('touchmove', moveDraw, { passive: false });
+        canvas.addEventListener('touchend', endDraw, { passive: false });
+
+        // ---- Board Undo/Redo buttons ----
+        document.getElementById('undoBtnBoard').addEventListener('click', undo);
+        document.getElementById('redoBtnBoard').addEventListener('click', redo);
+
+        // =============================================================
+        // 5. MENU SYSTEM
+        // =============================================================
+        const menuToggle = document.getElementById('menuToggle');
+        const menuPanel = document.getElementById('menuPanel');
+        const menuTools = document.getElementById('menuTools');
+        const menuBook = document.getElementById('menuBook');
+        const tabToolsBtn = document.getElementById('tabToolsBtn');
+        const tabBookBtn = document.getElementById('tabBookBtn');
+        const toolBadge = document.getElementById('toolBadge');
+
+        let menuOpen = false;
+
+        function toggleMenu() {
+            menuOpen = !menuOpen;
+            if (menuOpen) {
+                menuPanel.classList.add('open');
+                menuToggle.classList.add('active');
+                menuToggle.textContent = '✕';
+            } else {
+                menuPanel.classList.remove('open');
+                menuToggle.classList.remove('active');
+                menuToggle.textContent = '☰';
+            }
+        }
+
+        menuToggle.addEventListener('click', toggleMenu);
+
+        // Close menu when clicking outside
+        document.addEventListener('click', function(e) {
+            const bottomMenu = document.querySelector('.bottom-menu');
+            if (menuOpen && !bottomMenu.contains(e.target)) {
+                toggleMenu();
+            }
+        });
+
+        // ---- Tab switching in menu ----
+        function switchTab(tab) {
+            if (tab === 'tools') {
+                menuTools.style.display = 'flex';
+                menuBook.classList.remove('visible');
+                tabToolsBtn.classList.add('active');
+                tabBookBtn.classList.remove('active');
+                // Show color controls
+                document.querySelector('.menu-controls').style.display = 'flex';
+                document.querySelectorAll('.menu-divider').forEach(el => el.style.display = 'block');
+            } else {
+                menuTools.style.display = 'none';
+                menuBook.classList.add('visible');
+                tabBookBtn.classList.add('active');
+                tabToolsBtn.classList.remove('active');
+                // Hide color controls in book mode
+                document.querySelector('.menu-controls').style.display = 'none';
+                document.querySelectorAll('.menu-divider').forEach(el => el.style.display = 'none');
+                renderPdfListMini();
+            }
+        }
+
+        tabToolsBtn.addEventListener('click', function() {
+            switchTab('tools');
+        });
+
+        tabBookBtn.addEventListener('click', function() {
+            switchTab('book');
+        });
+
+        // ---- Tool switching ----
+        const toolButtons = document.querySelectorAll('.menu-tool[data-tool]');
+        const drawColorInput = document.getElementById('drawColor');
+        const drawSizeInput = document.getElementById('drawSize');
+        const sizeLabel = document.getElementById('sizeLabel');
+        const eraserSizeInput = document.getElementById('eraserSize');
+        const eraserSizeLabel = document.getElementById('eraserSizeLabel');
+        const eraserSizeControl = document.getElementById('eraserSizeControl');
+
+        const cursorMap = {
+            'pen': 'cursor-pen',
+            'highlighter': 'cursor-highlighter',
+            'eraser': 'cursor-eraser',
+            'text': 'cursor-text',
+            'circle': 'cursor-shape',
+            'rectangle': 'cursor-shape',
+            'line': 'cursor-shape',
+            'arrow': 'cursor-shape'
+        };
+
+        function updateCursor(tool) {
+            canvas.classList.remove('cursor-pen', 'cursor-highlighter', 'cursor-eraser', 'cursor-text', 'cursor-shape',
+                'cursor-default');
+            if (cursorMap[tool]) {
+                canvas.classList.add(cursorMap[tool]);
+            } else {
+                canvas.classList.add('cursor-default');
+            }
+        }
+
+        // Update tool badge
+        function updateBadge(tool) {
+            const icons = {
+                'pen': '✏️',
+                'highlighter': '🖍️',
+                'eraser': '🧽',
+                'text': '🔤',
+                'circle': '⭕',
+                'rectangle': '⬜',
+                'line': '📏',
+                'arrow': '➡️'
+            };
+            toolBadge.textContent = icons[tool] || '✏️';
+        }
+
+        toolButtons.forEach(el => {
+            el.addEventListener('click', function() {
+                const tool = this.dataset.tool;
+
+                if (tool === 'save') { saveBoardAsPDF(); return; }
+                if (tool === 'clear') {
+                    if (confirm('Clear all drawings?')) {
+                        drawings = [];
+                        currentPath = null;
+                        currentShape = null;
+                        isDrawing = false;
+                        saveHistory();
+                        renderAll();
+                        updateUndoRedoButtons();
+                    }
+                    return;
+                }
+
+                toolButtons.forEach(t => t.classList.remove('active'));
+                this.classList.add('active');
+                activeTool = tool;
+                updateCursor(tool);
+                updateBadge(tool);
+
+                // Show/hide eraser size control
+                if (tool === 'eraser') {
+                    eraserSizeControl.classList.add('visible');
+                } else {
+                    eraserSizeControl.classList.remove('visible');
+                }
+
+                currentShape = null;
+                isDrawing = false;
+                renderAll();
+
+                // If menu is open on mobile, keep it open
+            });
+        });
+
+        // ---- Color & Size ----
+        drawColorInput.addEventListener('input', function() {
+            drawColor = this.value;
+        });
+
+        drawSizeInput.addEventListener('input', function() {
+            drawSize = parseInt(this.value);
+            sizeLabel.textContent = drawSize;
+        });
+
+        eraserSizeInput.addEventListener('input', function() {
+            eraserSize = parseInt(this.value);
+            eraserSizeLabel.textContent = eraserSize;
+        });
+
+        drawColorInput.value = '#ffffff';
+        drawColor = '#ffffff';
+        drawSizeInput.value = 3;
+        drawSize = 3;
+        eraserSizeInput.value = 10;
+        eraserSize = 10;
+
+        // ---- Resize ----
+        window.addEventListener('resize', resizeCanvas);
+
+        // =============================================================
+        // 6. PDF LIST (Mini)
+        // =============================================================
+        function renderPdfListMini() {
+            const container = document.getElementById('pdfListMini');
+            if (!container) return;
+
+            if (!PDF_FILES.length) {
+                container.innerHTML = '<span style="color:rgba(255,255,255,0.3);font-size:11px;">No PDFs</span>';
+                return;
+            }
+
+            let html = '';
+            PDF_FILES.forEach((pdf) => {
+                html += `
+                    <span class="pdf-item-mini" data-url="${pdf.url}" data-name="${pdf.name}">📄 ${pdf.name}</span>
+                `;
+            });
+
+            container.innerHTML = html;
+
+            container.querySelectorAll('.pdf-item-mini').forEach(el => {
+                el.addEventListener('click', function() {
+                    const url = this.dataset.url;
+                    const name = this.dataset.name;
+                    if (url) {
+                        loadPdf(url, name);
+                        if (window.innerWidth <= 768) {
+                            // Keep menu open on mobile
+                        }
+                    }
+                });
+            });
+        }
+
+        // Custom PDF load from mini
+        document.getElementById('loadPdfMiniBtn').addEventListener('click', function() {
+            const url = document.getElementById('customPdfUrlMini').value.trim();
+            if (!url) {
+                alert('Please enter a PDF URL.');
+                return;
+            }
+            loadPdf(url, 'Custom PDF');
+        });
+
+        // Enter key on mini input
+        document.getElementById('customPdfUrlMini').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                document.getElementById('loadPdfMiniBtn').click();
+            }
+        });
+
+        // =============================================================
+        // 7. PDF VIEWER
+        // =============================================================
+        let pdfDoc = null;
+        let currentPage = 1;
+        let totalPages = 0;
+        let scale = 1.0;
+        const pdfCanvas = document.getElementById('pdfCanvas');
+        const pdfCtx = pdfCanvas.getContext('2d');
+        let currentPdfUrl = null;
+        let currentPdfName = 'No PDF';
+
+        const prevBtn = document.getElementById('prevBtn');
+        const nextBtn = document.getElementById('nextBtn');
+        const pageInfo = document.getElementById('pageInfo');
+        const zoomInBtn = document.getElementById('zoomInBtn');
+        const zoomOutBtn = document.getElementById('zoomOutBtn');
+        const fitBtn = document.getElementById('fitBtn');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const currentPdfNameEl = document.getElementById('currentPdfName');
+        const pdfContainer = document.getElementById('pdfContainer');
+        const closeViewerBtn = document.getElementById('closeViewerBtn');
+        const pdfError = document.getElementById('pdfError');
+
+        function showPdfViewer() {
+            pdfContainer.classList.add('active');
+            document.body.classList.add('pdf-visible');
+            pdfError.style.display = 'none';
+        }
+
+        function hidePdfViewer() {
+            pdfContainer.classList.remove('active');
+            document.body.classList.remove('pdf-visible');
+        }
+
+        closeViewerBtn.addEventListener('click', hidePdfViewer);
+
+        function renderPdfPage(num) {
+            if (!pdfDoc) return;
+            pdfDoc.getPage(num).then(page => {
+                const viewport = page.getViewport({ scale });
+                pdfCanvas.width = viewport.width;
+                pdfCanvas.height = viewport.height;
+                const renderContext = {
+                    canvasContext: pdfCtx,
+                    viewport: viewport
+                };
+                page.render(renderContext).promise.then(() => {
+                    pageInfo.textContent = `Page ${num} / ${totalPages}`;
+                    prevBtn.disabled = (num === 1);
+                    nextBtn.disabled = (num === totalPages);
+                    pdfError.style.display = 'none';
+                });
+            }).catch(() => {
+                showPdfError('Error rendering page.');
+            });
+        }
+
+        function showPdfError(msg) {
+            pdfError.textContent = '⚠️ ' + (msg || 'Failed to load PDF.');
+            pdfError.style.display = 'block';
+            pdfCtx.clearRect(0, 0, pdfCanvas.width || 400, pdfCanvas.height || 300);
+            pdfCtx.fillStyle = '#1a1a2e';
+            pdfCtx.fillRect(0, 0, pdfCanvas.width || 400, pdfCanvas.height || 300);
+            pdfCtx.fillStyle = 'rgba(255,255,255,0.3)';
+            pdfCtx.font = '16px Poppins, sans-serif';
+            pdfCtx.textAlign = 'center';
+            pdfCtx.fillText('⚠️ PDF could not be loaded', (pdfCanvas.width || 400) / 2, (pdfCanvas.height || 300) / 2);
+            currentPdfNameEl.textContent = 'Error';
+        }
+
+        function loadPdf(url, name) {
+            currentPdfUrl = url;
+            currentPdfName = name || url.split('/').pop() || 'PDF';
+            currentPdfNameEl.textContent = currentPdfName;
+            showPdfViewer();
+
+            pdfjsLib.getDocument(url).promise.then(doc => {
+                pdfDoc = doc;
+                totalPages = doc.numPages;
+                currentPage = 1;
+                scale = 1.0;
+                pageInfo.textContent = `Page 1 / ${totalPages}`;
+                prevBtn.disabled = true;
+                nextBtn.disabled = (totalPages === 1);
+                renderPdfPage(currentPage);
+                pdfError.style.display = 'none';
+            }).catch(err => {
+                console.error('PDF load error:', err);
+                showPdfError('Failed to load PDF. Check the URL.');
+                currentPdfNameEl.textContent = 'Error';
+            });
+        }
+
+        prevBtn.addEventListener('click', () => {
+            if (currentPage > 1) { currentPage--;
+                renderPdfPage(currentPage); }
+        });
+        nextBtn.addEventListener('click', () => {
+            if (currentPage < totalPages) { currentPage++;
+                renderPdfPage(currentPage); }
+        });
+        zoomInBtn.addEventListener('click', () => {
+            scale = Math.min(scale + 0.25, 3.0);
+            if (pdfDoc) renderPdfPage(currentPage);
+        });
+        zoomOutBtn.addEventListener('click', () => {
+            scale = Math.max(scale - 0.25, 0.25);
+            if (pdfDoc) renderPdfPage(currentPage);
+        });
+        fitBtn.addEventListener('click', () => {
+            if (!pdfDoc) return;
+            const container = pdfCanvas.parentElement;
+            const containerWidth = container.clientWidth - 40;
+            pdfDoc.getPage(currentPage).then(page => {
+                const viewport = page.getViewport({ scale: 1 });
+                scale = containerWidth / viewport.width;
+                scale = Math.max(0.25, Math.min(scale, 3.0));
+                renderPdfPage(currentPage);
+            });
+        });
+        downloadBtn.addEventListener('click', () => {
+            if (!currentPdfUrl) { alert('No PDF loaded.'); return; }
+            fetch(currentPdfUrl).then(res => res.blob()).then(blob => {
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = currentPdfName.replace(/[^a-zA-Z0-9.]/g, '_') + '.pdf';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(a.href);
+            }).catch(() => alert('Download failed.'));
+        });
+
+        // =============================================================
+        // 8. SAVE BOARD AS PDF
+        // =============================================================
+        function saveBoardAsPDF() {
+            if (drawings.length === 0) {
+                alert('Board is empty. Draw something first!');
+                return;
+            }
+
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF('landscape', 'pt', [W, H]);
+
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = W;
+            tempCanvas.height = H;
+            const tempCtx = tempCanvas.getContext('2d');
+
+            tempCtx.fillStyle = '#ffffff';
+            tempCtx.fillRect(0, 0, W, H);
+
+            drawings.forEach(d => {
+                drawItem(tempCtx, d, d.isEraser || false);
+            });
+
+            const imgData = tempCanvas.toDataURL('image/png');
+            pdf.addImage(imgData, 'PNG', 0, 0, W, H);
+            pdf.save('board_drawing.pdf');
+        }
+
+        // =============================================================
+        // 9. KEYBOARD SHORTCUTS
+        // =============================================================
+        document.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+                e.preventDefault();
+                if (e.shiftKey) { redo(); } else { undo(); }
+            }
+            if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
+                e.preventDefault();
+                redo();
+            }
+            // Escape to close menu
+            if (e.key === 'Escape' && menuOpen) {
+                toggleMenu();
+            }
+        });
+
+        // =============================================================
+        // 10. INIT
+        // =============================================================
+        resizeCanvas();
+
+        // Set default tool active
+        document.querySelector('.menu-tool[data-tool="pen"]')?.classList.add('active');
+        updateCursor('pen');
+        updateBadge('pen');
+
+        // Pre-load first PDF
+        if (PDF_FILES.length) {
+            const first = PDF_FILES[0];
+            pdfjsLib.getDocument(first.url).promise.then(doc => {
+                pdfDoc = doc;
+                totalPages = doc.numPages;
+                currentPage = 1;
+                scale = 1.0;
+                currentPdfUrl = first.url;
+                currentPdfName = first.name;
+                currentPdfNameEl.textContent = currentPdfName;
+                renderPdfPage(1);
+                pdfContainer.classList.remove('active');
+                document.body.classList.remove('pdf-visible');
+            }).catch(() => {});
+        }
+
+        saveHistory();
+        updateUndoRedoButtons();
+
+        console.log('✅ ExpertConnect Digital Board ready!');
+        console.log('🕐 Live clock on top-left.');
+        console.log('↩️ Undo/Redo on top-right with transparent glass effect.');
+        console.log('🧽 Eraser has its own adjustable size slider!');
+        console.log('📂 Horizontal bottom menu opens from left to right.');
+        console.log('📍 Menu toggle button at bottom-left corner.');
+    </script>
+
+</body>
+</html>
